@@ -111,6 +111,8 @@ async function initializeCoreServices() {
     
     // Initialize database connection (optional for Phase-1 testing)
     try {
+      // Set the logger for the database connection
+      databaseConnection.setLogger(logger);
       await databaseConnection.initialize();
       serviceContainer.register('database', databaseConnection);
       logger.info('Database connection initialized successfully');
