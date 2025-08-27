@@ -4,14 +4,22 @@ const jwt = require("jsonwebtoken");
 
 const router = express.Router();
 
+console.log('🔍 DEBUG: Google OAuth routes file loaded');
+
 // Google OAuth client
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// Test route to verify router is working
+router.get('/test', (req, res) => {
+  console.log('🔍 DEBUG: Google OAuth test route hit');
+  res.json({ success: true, message: 'Google OAuth test route working' });
+});
 
 /**
  * POST /api/modules/auth/google
  * Google OAuth login for admin access
  */
-router.post("/google", async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const { idToken } = req.body;
 
@@ -107,7 +115,7 @@ router.post("/google", async (req, res) => {
  * GET /api/modules/auth/google/verify
  * Verify Google OAuth token (for testing)
  */
-router.get("/google/verify", async (req, res) => {
+router.get("/verify", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
