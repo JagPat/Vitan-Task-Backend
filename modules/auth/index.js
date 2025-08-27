@@ -71,6 +71,10 @@ module.exports = {
       // Create router with enhanced routes
       const router = express.Router();
       
+      // Import Google OAuth routes
+      const googleAuthRoutes = require('./routes/googleAuth');
+      const adminRoutes = require('./routes/admin');
+      
       // Health check endpoint
       router.get('/health', async (req, res) => {
         res.json({
@@ -289,6 +293,12 @@ module.exports = {
         return res.json({ success: true, data: { exists: true, otp: record.otp, expiresAt: record.expiresAt } });
       });
       
+      // Mount Google OAuth routes
+      router.use('/google', googleAuthRoutes);
+      
+      // Mount admin routes
+      router.use('/admin', adminRoutes);
+      
       // Register routes
       app.use('/api/modules/auth', router);
       logger.info('Auth module routes registered at /api/modules/auth');
@@ -308,7 +318,7 @@ module.exports = {
       status: 'healthy',
       module: 'auth',
       version: '2.0.0',
-      features: ['email-otp', 'in-memory-storage'],
+      features: ['email-otp', 'in-memory-storage', 'google-oauth', 'admin-routes'],
       activeOTPs: otpStorage.size
     };
   },
