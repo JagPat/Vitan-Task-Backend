@@ -33,7 +33,7 @@ const logger = winston.createLogger({
 });
 
 const app = express();
-// Use port 4000 to avoid collision with current server.js (port 3000)
+// Use Railway-assigned PORT or fallback to 3000 for local development
 const PORT = process.env.PORT || 3000;
 
 // Initialize service container and event bus
@@ -409,7 +409,7 @@ async function startServer() {
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`Health check available at: http://0.0.0.0:${PORT}/health`);
       logger.info(`Module management at: http://0.0.0.0:${PORT}/api/modules`);
-      logger.info(`Main server continues running on port 3000`);
+      logger.info(`Server running on port ${PORT}`);
     });
     
     // Graceful shutdown
