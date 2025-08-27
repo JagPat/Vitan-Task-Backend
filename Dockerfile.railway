@@ -24,4 +24,3 @@ EXPOSE 3000
 
 # Start the backend server
 CMD ["/start.sh"]
-# Force Railway redeployment - Wed Aug 27 18:47:17 IST 2025
