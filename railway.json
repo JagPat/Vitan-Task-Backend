@@ -1,0 +1,20 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile.railway",
+    "watchPatterns": ["modules/**/*", "shared/**/*", "server-modular.js", "service-container.js", "module-loader.js", "package.json", "Dockerfile.railway"],
+    "buildArgs": {
+      "BUILD_TIMESTAMP": "{{.BuildTime}}",
+      "COMMIT_HASH": "{{.CommitHash}}",
+      "VITE_BUILD_ID": "{{.BuildTime}}"
+    }
+  },
+  "deploy": {
+    "startCommand": "/start.sh",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

@@ -1,0 +1,26 @@
+# Backend-only Dockerfile for Railway
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production --no-audit --no-fund
+
+# Copy source code
+COPY . .
+
+# Create startup script
+RUN printf '%s\n' '#!/bin/sh' \
+  'echo "Starting Vitan Task Backend..."' \
+  'node server-modular.js' > /start.sh && \
+  chmod +x /start.sh
+
+# Expose port
+EXPOSE 3000
+
+# Start the backend server
+CMD ["/start.sh"]

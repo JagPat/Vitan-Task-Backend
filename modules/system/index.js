@@ -1,0 +1,1 @@
+module.exports = { name: "system", version: "1.0.0", initialize: async () => { console.log("⚙️ System module initialized"); return true; }, shutdown: async () => { console.log("⚙️ System module shutdown"); return true; }, healthCheck: async () => ({ status: "healthy", module: "system", timestamp: new Date().toISOString() }) };
