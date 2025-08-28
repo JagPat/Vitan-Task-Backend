@@ -72,13 +72,8 @@ module.exports = {
       const router = express.Router();
       
       // Import Google OAuth routes
-      console.log('🔍 DEBUG: Importing Google OAuth routes...');
       const googleAuthRoutes = require('./routes/googleAuth');
-      console.log('🔍 DEBUG: Google OAuth routes imported:', typeof googleAuthRoutes);
-      
-      console.log('🔍 DEBUG: Importing admin routes...');
       const adminRoutes = require('./routes/admin');
-      console.log('🔍 DEBUG: Admin routes imported:', typeof adminRoutes);
       
       // Health check endpoint
       router.get('/health', async (req, res) => {
@@ -299,19 +294,13 @@ module.exports = {
       });
       
       // Mount Google OAuth routes
-      console.log('🔍 DEBUG: Mounting Google OAuth routes at /google...');
       router.use('/google', googleAuthRoutes);
-      console.log('🔍 DEBUG: Google OAuth routes mounted successfully');
       
       // Mount admin routes
-      console.log('🔍 DEBUG: Mounting admin routes at /admin...');
       router.use('/admin', adminRoutes);
-      console.log('🔍 DEBUG: Admin routes mounted successfully');
       
       // Register routes
-      console.log('🔍 DEBUG: Registering auth module routes at /api/modules/auth...');
       app.use('/api/modules/auth', router);
-      console.log('🔍 DEBUG: Auth module routes registered successfully');
       logger.info('Auth module routes registered at /api/modules/auth');
       
       logger.info('Auth module initialized successfully with email support');

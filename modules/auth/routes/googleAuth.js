@@ -1,25 +1,16 @@
-const express = require("express");
-const { OAuth2Client } = require("google-auth-library");
-const jwt = require("jsonwebtoken");
-
+const express = require('express');
+const { OAuth2Client } = require('google-auth-library');
+const jwt = require('jsonwebtoken');
 const router = express.Router();
 
-console.log('🔍 DEBUG: Google OAuth routes file loaded');
-
-// Google OAuth client
+// Initialize Google OAuth client
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Test route to verify router is working
-router.get('/test', (req, res) => {
-  console.log('🔍 DEBUG: Google OAuth test route hit');
-  res.json({ success: true, message: 'Google OAuth test route working' });
-});
-
 /**
- * POST /api/modules/auth/google
- * Google OAuth login for admin access
+ * POST /api/modules/auth/google/login
+ * Google OAuth login with dynamic role assignment
  */
-router.post("/", async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
     const { idToken } = req.body;
 
@@ -39,57 +30,70 @@ router.post("/", async (req, res) => {
     const payload = ticket.getPayload();
     const { email, name, picture, sub: googleId } = payload;
 
-    // Check if this is the admin email
-    if (email !== "jagrutpatel@gmail.com") {
+    // Check if user exists in database
+    let user = await getUserFromDatabase(email);
+    
+    if (!user) {
+      // Create new user with default 'user' role
+      user = await createNewUser({
+        email,
+        name,
+        picture,
+        googleId,
+        role: 'user' // Default role for new users
+      });
+      
+      req.logger?.info("New user created via Google OAuth", {
+        email: user.email,
+        role: user.role,
+        loginMethod: user.loginMethod
+      });
+    } else {
+      // Update existing user's last login and picture
+      await updateUserLastLogin(user.id, picture);
+      user.picture = picture; // Use latest picture from Google
+    }
+
+    // Check if user is active
+    if (user.status !== 'active') {
       return res.status(403).json({
         success: false,
-        error: "Access denied. Only admin users can login via Google OAuth."
+        error: "Account is not active. Please contact support."
       });
     }
 
-    // Create admin user object
-    const adminUser = {
-      id: googleId,
-      email,
-      name,
-      picture,
-      role: "admin",
-      loginMethod: "google",
-      lastLogin: new Date().toISOString()
-    };
-
-    // Generate JWT token with admin role
+    // Generate JWT token with user's role from database
     const token = jwt.sign(
       {
-        userId: adminUser.id,
-        email: adminUser.email,
-        role: adminUser.role,
-        loginMethod: adminUser.loginMethod
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        loginMethod: user.loginMethod
       },
       process.env.JWT_SECRET || process.env.AUTH_JWT_SECRET,
       { expiresIn: "24h" }
     );
 
-    // Log successful admin login
-    req.logger?.info("Admin user logged in via Google OAuth", {
-      email: adminUser.email,
-      role: adminUser.role,
-      loginMethod: adminUser.loginMethod
+    // Log successful login
+    req.logger?.info("User logged in via Google OAuth", {
+      email: user.email,
+      role: user.role,
+      loginMethod: user.loginMethod
     });
 
     // Respond with token and user info
     res.json({
       success: true,
-      message: "Admin login successful",
+      message: "Login successful",
       data: {
         token,
-        token,
         user: {
-          id: adminUser.id,
-          email: adminUser.email,
-          name: adminUser.name,
-          picture: adminUser.picture,
-          role: adminUser.role
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          picture: user.picture,
+          role: user.role,
+          status: user.status
         }
       }
     });
@@ -113,7 +117,7 @@ router.post("/", async (req, res) => {
 
 /**
  * GET /api/modules/auth/google/verify
- * Verify Google OAuth token (for testing)
+ * Verify Google OAuth token and return user info
  */
 router.get("/verify", async (req, res) => {
   try {
@@ -127,22 +131,29 @@ router.get("/verify", async (req, res) => {
 
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET || process.env.AUTH_JWT_SECRET);
-
-    if (decoded.role !== "admin") {
-      return res.status(400).json({
+    
+    // Get fresh user data from database
+    const user = await getUserFromDatabase(decoded.email);
+    
+    if (!user || user.status !== 'active') {
+      return res.status(401).json({
         success: false,
-        error: "Admin access required"
+        error: "User not found or inactive"
       });
     }
 
+    // Return updated user info
     res.json({
       success: true,
-      message: "Token verified",
       data: {
-        userId: decoded.userId,
-        email: decoded.email,
-        role: decoded.role,
-        loginMethod: decoded.loginMethod
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          picture: user.picture,
+          role: user.role,
+          status: user.status
+        }
       }
     });
 
@@ -154,5 +165,150 @@ router.get("/verify", async (req, res) => {
     });
   }
 });
+
+/**
+ * POST /api/modules/auth/google/refresh
+ * Refresh user's role and permissions from database
+ */
+router.post("/refresh", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        error: "Bearer token required"
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || process.env.AUTH_JWT_SECRET);
+    
+    // Get fresh user data from database
+    const user = await getUserFromDatabase(decoded.email);
+    
+    if (!user || user.status !== 'active') {
+      return res.status(401).json({
+        success: false,
+        error: "User not found or inactive"
+      });
+    }
+
+    // Generate new token with updated role
+    const newToken = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        loginMethod: user.loginMethod
+      },
+      process.env.JWT_SECRET || process.env.AUTH_JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    res.json({
+      success: true,
+      message: "Token refreshed successfully",
+      data: {
+        token: newToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          picture: user.picture,
+          role: user.role,
+          status: user.status
+        }
+      }
+    });
+
+  } catch (error) {
+    req.logger?.error("Token refresh failed:", error);
+    res.status(401).json({
+      success: false,
+      error: "Token refresh failed"
+    });
+  }
+});
+
+// Database helper functions
+async function getUserFromDatabase(email) {
+  try {
+    // This should be replaced with your actual database query
+    // For now, using a placeholder - you'll need to implement this
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL
+    });
+
+    const query = `
+      SELECT id, email, name, picture, role, status, login_method as "loginMethod", 
+             last_login as "lastLogin", created_at as "createdAt", updated_at as "updatedAt"
+      FROM users 
+      WHERE email = $1
+    `;
+    
+    const result = await pool.query(query, [email]);
+    await pool.end();
+    
+    return result.rows[0] || null;
+  } catch (error) {
+    console.error('Database error:', error);
+    return null;
+  }
+}
+
+async function createNewUser(userData) {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL
+    });
+
+    const query = `
+      INSERT INTO users (email, name, picture, google_id, role, status, login_method)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, email, name, picture, role, status, login_method as "loginMethod", 
+                last_login as "lastLogin", created_at as "createdAt", updated_at as "updatedAt"
+    `;
+    
+    const values = [
+      userData.email,
+      userData.name,
+      userData.picture,
+      userData.googleId,
+      userData.role,
+      'active',
+      'google'
+    ];
+    
+    const result = await pool.query(query, values);
+    await pool.end();
+    
+    return result.rows[0];
+  } catch (error) {
+    console.error('Database error creating user:', error);
+    throw error;
+  }
+}
+
+async function updateUserLastLogin(userId, picture) {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL
+    });
+
+    const query = `
+      UPDATE users 
+      SET last_login = CURRENT_TIMESTAMP, picture = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `;
+    
+    await pool.query(query, [userId, picture]);
+    await pool.end();
+  } catch (error) {
+    console.error('Database error updating last login:', error);
+  }
+}
 
 module.exports = router;
