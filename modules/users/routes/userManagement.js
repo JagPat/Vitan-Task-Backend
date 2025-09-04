@@ -1,43 +1,20 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const router = express.Router();
 
-// Middleware to check if user is admin
-const requireAdmin = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        success: false,
-        error: "Bearer token required"
-      });
-    }
+// Import centralized auth middleware
+const { requireAuth } = require('../../../middleware/authMiddleware');
 
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || process.env.AUTH_JWT_SECRET);
-    
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: "Admin access required"
-      });
-    }
-
-    req.user = decoded;
-    next();
-  } catch (error) {
-    res.status(401).json({
-      success: false,
-      error: "Invalid token"
-    });
-  }
-};
+// Middleware to check if user is admin or super_admin
+const requireAdminOrSuperAdmin = requireAuth({ 
+  roles: ['admin', 'super_admin'],
+  permissions: ['manage_users']
+});
 
 /**
  * GET /api/modules/users
  * Get all users (admin only)
  */
-router.get("/", requireAdmin, async (req, res) => {
+router.get("/", requireAdminOrSuperAdmin, async (req, res) => {
   try {
     const { Pool } = require('pg');
     const pool = new Pool({
@@ -75,7 +52,7 @@ router.get("/", requireAdmin, async (req, res) => {
  * GET /api/modules/users/:id
  * Get specific user by ID (admin only)
  */
-router.get("/:id", requireAdmin, async (req, res) => {
+router.get("/:id", requireAdminOrSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { Pool } = require('pg');
@@ -120,18 +97,18 @@ router.get("/:id", requireAdmin, async (req, res) => {
  * PUT /api/modules/users/:id/role
  * Update user role (admin only)
  */
-router.put("/:id/role", requireAdmin, async (req, res) => {
+router.put("/:id/role", requireAdminOrSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { role, reason } = req.body;
     const adminUserId = req.user.userId;
 
     // Validate role
-    const validRoles = ['user', 'admin', 'moderator'];
+    const validRoles = ['user', 'admin', 'moderator', 'super_admin'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid role. Must be one of: user, admin, moderator"
+        error: "Invalid role. Must be one of: user, admin, moderator, super_admin"
       });
     }
 
@@ -211,7 +188,7 @@ router.put("/:id/role", requireAdmin, async (req, res) => {
  * PUT /api/modules/users/:id/status
  * Update user status (admin only)
  */
-router.put("/:id/status", requireAdmin, async (req, res) => {
+router.put("/:id/status", requireAdminOrSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reason } = req.body;
@@ -302,7 +279,7 @@ router.put("/:id/status", requireAdmin, async (req, res) => {
  * GET /api/modules/users/audit-log
  * Get role change audit log (admin only)
  */
-router.get("/audit-log", requireAdmin, async (req, res) => {
+router.get("/audit-log", requireAdminOrSuperAdmin, async (req, res) => {
   try {
     const { Pool } = require('pg');
     const pool = new Pool({
@@ -352,7 +329,7 @@ router.get("/audit-log", requireAdmin, async (req, res) => {
  * GET /api/modules/users/permissions/:email
  * Get user permissions (admin only)
  */
-router.get("/permissions/:email", requireAdmin, async (req, res) => {
+router.get("/permissions/:email", requireAdminOrSuperAdmin, async (req, res) => {
   try {
     const { email } = req.params;
     const { Pool } = require('pg');
@@ -393,3 +370,4 @@ router.get("/permissions/:email", requireAdmin, async (req, res) => {
 });
 
 module.exports = router;
+

@@ -6,7 +6,8 @@
     "watchPatterns": ["modules/**/*", "shared/**/*", "server-modular.js", "service-container.js", "module-loader.js", "package.json", "Dockerfile.railway"],
     "buildArgs": {
       "BUILD_TIMESTAMP": "{{.BuildTime}}",
-      "COMMIT_HASH": "{{.CommitHash}}"
+      "COMMIT_HASH": "{{.CommitHash}}",
+      "VITE_BUILD_ID": "{{.BuildTime}}"
     }
   },
   "deploy": {

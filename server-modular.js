@@ -18,6 +18,7 @@ const databaseConnection = require('./modules/core/database/connection');
 const { errorHandler } = require('./middleware/errorHandler');
 const { requestLogger } = require('./middleware/requestLogger');
 const { requestId } = require('./middleware/requestId');
+const { authenticateToken, requireRole, requirePermission, requireAuth, optionalAuth } = require('./middleware/authMiddleware');
 
 // Initialize logger
 const logger = winston.createLogger({

@@ -3,16 +3,8 @@ const adminAuth = require("../middleware/adminAuth");
 
 const router = express.Router();
 
-console.log('🔍 DEBUG: Admin routes file loaded');
-
 // Protect all admin routes
 router.use(adminAuth);
-
-// Test route to verify admin router is working
-router.get('/test', (req, res) => {
-  console.log('🔍 DEBUG: Admin test route hit');
-  res.json({ success: true, message: 'Admin test route working', user: req.user });
-});
 
 /**
  * GET /api/modules/auth/admin/profile

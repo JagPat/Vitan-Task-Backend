@@ -146,3 +146,4 @@ BEGIN
     WHERE u.email = user_email AND u.status = 'active';
 END;
 $$ LANGUAGE plpgsql;
+

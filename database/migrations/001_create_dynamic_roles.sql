@@ -148,3 +148,4 @@ DO $$
 BEGIN
     RAISE NOTICE 'Migration 001 completed successfully: Dynamic Role-Based Access Control System created';
 END $$;
+
