@@ -41,7 +41,10 @@ const serviceContainer = new ServiceContainer();
 const eventBus = new EventBus();
 
 // Middleware (preserve current setup)
-app.use(helmet());
+// Allow cross-origin resource loading for API JSON responses when CORS permits it
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 app.use(cors({
   origin: [
     'https://vitan-task-frontend.up.railway.app',
