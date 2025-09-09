@@ -30,28 +30,39 @@ router.post("/login", async (req, res) => {
     const payload = ticket.getPayload();
     const { email, name, picture, sub: googleId } = payload;
 
-    // Check if user exists in database
-    let user = await getUserFromDatabase(email);
-    
-    if (!user) {
-      // Create new user with default 'user' role
-      user = await createNewUser({
+    // Try to load/create user from DB. If DB fails, fall back to ephemeral user.
+    let user = null;
+    try {
+      user = await getUserFromDatabase(email);
+      if (!user) {
+        user = await createNewUser({
+          email,
+          name,
+          picture,
+          googleId,
+          role: 'user'
+        });
+        req.logger?.info("New user created via Google OAuth", {
+          email: user.email,
+          role: user.role,
+          loginMethod: user.loginMethod
+        });
+      } else {
+        await updateUserLastLogin(user.id, picture);
+        user.picture = picture;
+      }
+    } catch (dbError) {
+      req.logger?.warn("Auth DB unavailable, proceeding with ephemeral user", { error: dbError.message });
+      // Minimal user object to allow login to proceed
+      user = {
+        id: `ephemeral_${googleId}`,
         email,
         name,
         picture,
-        googleId,
-        role: 'user' // Default role for new users
-      });
-      
-      req.logger?.info("New user created via Google OAuth", {
-        email: user.email,
-        role: user.role,
-        loginMethod: user.loginMethod
-      });
-    } else {
-      // Update existing user's last login and picture
-      await updateUserLastLogin(user.id, picture);
-      user.picture = picture; // Use latest picture from Google
+        role: 'user',
+        status: 'active',
+        loginMethod: 'google'
+      };
     }
 
     // Check if user is active
