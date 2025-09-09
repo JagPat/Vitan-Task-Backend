@@ -111,19 +111,8 @@ router.post("/login", async (req, res) => {
 
   } catch (error) {
     req.logger?.error("Google OAuth login failed:", { message: error.message });
-
-    // Invalid token / verification issues
-    if (
-      error.message.includes("Invalid Value") ||
-      error.message.includes("invalid") ||
-      error.message.includes("expired") ||
-      error.code === 'ERR_JWT_INVALID'
-    ) {
-      return res.status(401).json({ success: false, error: "Invalid Google token" });
-    }
-
-    // Everything else → treat as service error
-    return res.status(500).json({ success: false, error: "Google OAuth authentication failed" });
+    // Treat any verification failure as 401 to avoid generic 500s surfacing to UI
+    return res.status(401).json({ success: false, error: "Invalid Google token" });
   }
 });
 
