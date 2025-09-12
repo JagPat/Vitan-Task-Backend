@@ -20,8 +20,8 @@ const adminAuth = (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || process.env.AUTH_JWT_SECRET);
 
-    // Check if user has admin role
-    if (decoded.role !== "admin") {
+    // Check if user has admin or super_admin role
+    if (!(decoded.role === "admin" || decoded.role === "super_admin")) {
       return res.status(403).json({
         success: false,
         error: "Admin access required"
