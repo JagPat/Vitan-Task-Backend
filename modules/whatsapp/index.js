@@ -8,7 +8,8 @@ module.exports = {
   dependencies: ['logger'],
   routes: [
     { method: 'GET', path: '/templates', handler: 'getTemplates' },
-    { method: 'GET', path: '/queue', handler: 'getQueueStatus' }
+    { method: 'GET', path: '/queue', handler: 'getQueueStatus' },
+    { method: 'POST', path: '/incoming', handler: 'processIncoming' }
   ],
 
   initialize(serviceContainer, app) {
@@ -114,6 +115,52 @@ module.exports = {
           error: 'Failed to fetch WhatsApp queue status',
           timestamp: new Date().toISOString()
         });
+      }
+    });
+
+    // POST /api/modules/whatsapp/incoming - Process incoming WhatsApp message
+    router.post('/incoming', async (req, res) => {
+      try {
+        const { from, text } = req.body || {};
+        if (!text) {
+          return res.status(400).json({ success: false, error: 'text is required' });
+        }
+        const { detectLanguage } = require('../ai/services/langDetect');
+        const { extractIntent } = require('../ai/services/intentRouter');
+
+        const language = detectLanguage(text);
+        const { intent, payload } = extractIntent(text, language);
+
+        // Attempt to create a task for create_task intent
+        let result = null;
+        if (intent === 'create_task') {
+          const service = req.app.locals.taskService;
+          if (service && typeof service.createTask === 'function') {
+            const created = await service.createTask({
+              title: payload.title?.slice(0, 120) || `Task from ${from || 'whatsapp'}`,
+              description: `Created via WhatsApp message: "${text}"`,
+              priority: 'medium',
+              project_id: null
+            });
+            result = { type: 'task_created', taskId: created.id };
+          } else {
+            result = { type: 'task_not_available' };
+          }
+        }
+
+        res.json({
+          success: true,
+          data: {
+            from: from || null,
+            language,
+            intent,
+            result
+          },
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        logger.error('Incoming WhatsApp processing failed:', error);
+        res.status(500).json({ success: false, error: 'Failed to process message' });
       }
     });
 

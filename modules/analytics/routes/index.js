@@ -194,6 +194,44 @@ router.get('/overview', async (req, res) => {
   }
 });
 
+// AI usage summary (Phase-2 placeholder)
+router.get('/ai-usage', async (_req, res) => {
+  try {
+    const data = {
+      timestamp: new Date().toISOString(),
+      totalMessages: Math.floor(Math.random() * 1000) + 200,
+      intents: {
+        create_task: Math.floor(Math.random() * 300) + 50,
+        status_check: Math.floor(Math.random() * 200) + 20,
+        help: Math.floor(Math.random() * 100) + 10,
+        unknown: Math.floor(Math.random() * 150) + 30
+      },
+      languages: { en: 70, es: 15, hi: 10, ar: 5 },
+      aiCalls: Math.floor(Math.random() * 800) + 150
+    };
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch AI usage' });
+  }
+});
+
+// WhatsApp stats (Phase-2 placeholder)
+router.get('/whatsapp-stats', async (_req, res) => {
+  try {
+    const data = {
+      timestamp: new Date().toISOString(),
+      sent: Math.floor(Math.random() * 2000) + 500,
+      pending: Math.floor(Math.random() * 50) + 10,
+      failed: Math.floor(Math.random() * 40) + 5,
+      queueSize: Math.floor(Math.random() * 50) + 10,
+      processingRate: Math.floor(Math.random() * 60) + 20
+    };
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch WhatsApp stats' });
+  }
+});
+
 // Real-time metrics
 router.get('/realtime', async (req, res) => {
   try {
