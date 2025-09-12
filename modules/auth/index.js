@@ -74,6 +74,7 @@ module.exports = {
       // Import Google OAuth routes
       const googleAuthRoutes = require('./routes/googleAuth');
       const adminRoutes = require('./routes/admin');
+      const baseAuthRoutes = require('./routes');
       
       // Health check endpoint
       router.get('/health', async (req, res) => {
@@ -88,7 +89,11 @@ module.exports = {
           }
         });
       });
-      
+      // Mount v2/base auth routes (includes /me and other endpoints)
+      // Mount AFTER our local handlers are defined to prevent duplicate OTP handlers from shadowing
+      // but BEFORE registering on app, so paths are available under /api/modules/auth
+      router.use('/', baseAuthRoutes);
+
       // Request OTP endpoint
       router.post('/otp/request', async (req, res) => {
         try {

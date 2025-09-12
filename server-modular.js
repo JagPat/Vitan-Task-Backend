@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 const winston = require('winston');
+const jwt = require('jsonwebtoken');
 
 // Load environment variables
 dotenv.config();
@@ -39,6 +40,8 @@ const PORT = process.env.PORT || 3000;
 
 // Initialize service container and event bus
 const serviceContainer = new ServiceContainer();
+// Expose container to routes expecting req.app.locals.container
+app.locals.container = serviceContainer;
 const eventBus = new EventBus();
 
 // Middleware (preserve current setup)
@@ -133,6 +136,26 @@ async function initializeCoreServices() {
     // Register core services in container
     serviceContainer.register('eventBus', eventBus);
     serviceContainer.register('logger', logger);
+    // Minimal authService for routes that call container.get('authService')
+    const authServiceLite = {
+      async getCurrentUser(token) {
+        try {
+          const secret = process.env.JWT_SECRET || process.env.AUTH_JWT_SECRET;
+          if (!token || !secret) return null;
+          const decoded = jwt.verify(token, secret);
+          return {
+            id: decoded.userId || decoded.id || decoded.sub || null,
+            email: decoded.email || null,
+            role: decoded.role || 'user',
+            loginMethod: decoded.loginMethod || 'jwt'
+          };
+        } catch (e) {
+          return null;
+        }
+      },
+      async healthCheck() { return { status: 'healthy' }; }
+    };
+    serviceContainer.register('authService', authServiceLite);
     
     logger.info('Core services initialized successfully');
     return true;
