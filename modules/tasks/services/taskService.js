@@ -29,6 +29,10 @@ class TaskService {
     });
 
     // Ensure mock-safe behavior if a real database client isn't available
+    // In-memory store for mock-safe mode
+    this.taskMem = [];
+    this.memIdCounter = 1;
+
     if (!this.database || typeof this.database.getClient !== 'function') {
       this.logger.warn('Database client not available. TaskService running in mock-safe mode.');
       this.isMockDb = true;
@@ -123,7 +127,7 @@ class TaskService {
       let task;
       if (this.isMockDb) {
         task = {
-          id: `mock-${Date.now()}`,
+          id: `mem-${this.memIdCounter++}`,
           title,
           description,
           due_date,
@@ -138,8 +142,10 @@ class TaskService {
           project_id,
           watchers,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          deleted_at: null
         };
+        this.taskMem.push(task);
       } else {
         const result = await client.query(query, values);
         task = result.rows[0];
@@ -176,8 +182,8 @@ class TaskService {
     
     try {
       if (this.isMockDb) {
-        this.logger.warn('getAllTasks served from mock-safe mode, returning empty list');
-        return [];
+        this.logger.warn('getAllTasks served from mock-safe mode, returning in-memory list');
+        return this.taskMem.filter(t => !t.deleted_at);
       }
       let query = 'SELECT * FROM tasks WHERE deleted_at IS NULL';
       const values = [];
@@ -227,8 +233,8 @@ class TaskService {
     
     try {
       if (this.isMockDb) {
-        this.logger.warn('getTaskById served from mock-safe mode, returning null');
-        return null;
+        this.logger.warn('getTaskById served from mock-safe mode');
+        return this.taskMem.find(t => String(t.id) === String(taskId) && !t.deleted_at) || null;
       }
       const query = 'SELECT * FROM tasks WHERE id = $1 AND deleted_at IS NULL';
       const result = await client.query(query, [taskId]);
@@ -254,9 +260,11 @@ class TaskService {
     
     try {
       if (this.isMockDb) {
-        const mockTask = { id: taskId, ...updates, updated_at: new Date().toISOString() };
-        this.logger.warn('updateTask in mock-safe mode, returning mock object');
-        return mockTask;
+        const idx = this.taskMem.findIndex(t => String(t.id) === String(taskId) && !t.deleted_at);
+        if (idx === -1) throw new Error('Task not found');
+        this.taskMem[idx] = { ...this.taskMem[idx], ...updates, updated_at: new Date().toISOString() };
+        this.logger.warn('updateTask in mock-safe mode, updated in-memory task');
+        return this.taskMem[idx];
       }
       const allowedFields = [
         'title', 'description', 'due_date', 'priority', 'status',
@@ -322,9 +330,11 @@ class TaskService {
     
     try {
       if (this.isMockDb) {
-        const mockDeleted = { id: taskId, status: 'deleted', deleted_at: new Date().toISOString() };
-        this.logger.warn('deleteTask in mock-safe mode, returning mock deleted object');
-        return mockDeleted;
+        const idx = this.taskMem.findIndex(t => String(t.id) === String(taskId) && !t.deleted_at);
+        if (idx === -1) throw new Error('Task not found');
+        this.taskMem[idx] = { ...this.taskMem[idx], status: 'deleted', deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        this.logger.warn('deleteTask in mock-safe mode, soft-deleted in-memory task');
+        return this.taskMem[idx];
       }
       const query = `
         UPDATE tasks 
