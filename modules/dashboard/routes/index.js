@@ -126,6 +126,35 @@ router.get('/summary', async (req, res) => {
 // Quick stats
 router.get('/quick-stats', async (req, res) => {
   try {
+    // Prefer live DB metrics when available
+    const dbConn = (() => {
+      try { return require('../../core/database/connection'); } catch (_) { return null; }
+    })();
+
+    if (dbConn && typeof dbConn.query === 'function' && dbConn.pool) {
+      try {
+        const [totalTasks, completedTasks, activeProjects, activeUsers] = await Promise.all([
+          dbConn.query("SELECT COUNT(*)::int AS c FROM tasks WHERE deleted_at IS NULL"),
+          dbConn.query("SELECT COUNT(*)::int AS c FROM tasks WHERE deleted_at IS NULL AND LOWER(status)='completed'"),
+          dbConn.query("SELECT COUNT(DISTINCT project_id)::int AS c FROM tasks WHERE deleted_at IS NULL AND project_id IS NOT NULL"),
+          dbConn.query("SELECT COUNT(*)::int AS c FROM users WHERE status='active'")
+        ]);
+
+        const t = totalTasks.rows[0]?.c || 0;
+        const c = completedTasks.rows[0]?.c || 0;
+        const completionRate = t ? Math.round((c / t) * 100) : 0;
+        const quick = {
+          completionRate,
+          activeProjects: activeProjects.rows[0]?.c || 0,
+          teamCollaboration: activeUsers.rows[0]?.c || 0
+        };
+        return res.json(quick);
+      } catch (e) {
+        // fall through to in-memory overview
+      }
+    }
+
+    // Fallback to in-memory overview quick stats
     const overview = await dashboardService.getDashboardOverview();
     res.json(overview.quickStats);
   } catch (error) {
