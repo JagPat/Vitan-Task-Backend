@@ -148,6 +148,19 @@ module.exports = {
           }
         }
 
+        // Optional: store a log entry in user_memory table if available
+        try {
+          const { Pool } = require('pg');
+          const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false });
+          await pool.query(
+            'INSERT INTO user_memory (user_email, role, message, intent, metadata) VALUES ($1, $2, $3, $4, $5)',
+            [String(from || 'unknown'), 'user', text, intent, JSON.stringify({ language, result })]
+          );
+          await pool.end();
+        } catch (e) {
+          logger.warn('user_memory insert failed (non-fatal): ' + e.message);
+        }
+
         res.json({
           success: true,
           data: {
