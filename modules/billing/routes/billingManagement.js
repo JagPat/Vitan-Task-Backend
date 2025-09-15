@@ -265,3 +265,6 @@ router.put("/:organizationId/plan", requireSuperAdmin, async (req, res) => {
 });
 
 module.exports = router;
+
+
+

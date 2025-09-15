@@ -161,13 +161,18 @@ module.exports = {
           logger.warn('user_memory insert failed (non-fatal): ' + e.message);
         }
 
+        const message = intent === 'create_task'
+          ? (result?.type === 'task_created' ? 'Task created!' : 'Task creation not available')
+          : (intent === 'status_check' ? 'Status feature coming soon' : intent === 'help' ? 'Send "create task <title>" to add a task' : 'Could not understand your request.');
+
         res.json({
           success: true,
           data: {
             from: from || null,
             language,
             intent,
-            result
+            result,
+            message
           },
           timestamp: new Date().toISOString()
         });

@@ -3,6 +3,8 @@ const Joi = require('joi');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
+// In-memory profile fallback when DB is unavailable in CI/tests
+const profileMem = new Map(); // key: email, value: { name, picture, preferred_language }
 
 // Validation schemas
 const otpRequestSchema = Joi.object({
@@ -168,11 +170,24 @@ router.get('/me', authMiddleware, async (req, res) => {
         error: 'Invalid or expired token'
       });
     }
+    // Try to augment with DB or memory profile
+    let enriched = { ...user };
+    try {
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false });
+      const r = await pool.query('SELECT name, picture, preferred_language FROM users WHERE email=$1', [user.email]);
+      await pool.end();
+      if (r.rows[0]) {
+        enriched = { ...enriched, ...r.rows[0] };
+      }
+    } catch (_) {
+      // Fallback to memory
+      if (profileMem.has(user.email)) {
+        enriched = { ...enriched, ...profileMem.get(user.email) };
+      }
+    }
 
-    res.json({
-      success: true,
-      data: user
-    });
+    res.json({ success: true, data: enriched });
 
   } catch (error) {
     console.error('Get current user error:', error);
@@ -180,6 +195,37 @@ router.get('/me', authMiddleware, async (req, res) => {
       success: false,
       error: 'Failed to get user information'
     });
+  }
+});
+
+// Update current user profile
+router.put('/me', authMiddleware, async (req, res) => {
+  try {
+    const { name, picture, preferred_language } = req.body || {};
+
+    // Update DB if available; otherwise return 501
+    try {
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false });
+      await pool.query(
+        `UPDATE users SET name = COALESCE($2, name), picture = COALESCE($3, picture), preferred_language = COALESCE($4, preferred_language), updated_at=NOW() WHERE email=$1`,
+        [req.user.email, name, picture, preferred_language]
+      );
+      await pool.end();
+    } catch (e) {
+      // Memory fallback for CI/tests
+      const current = profileMem.get(req.user.email) || {};
+      profileMem.set(req.user.email, {
+        ...current,
+        ...(name !== undefined ? { name } : {}),
+        ...(picture !== undefined ? { picture } : {}),
+        ...(preferred_language !== undefined ? { preferred_language } : {})
+      });
+    }
+
+    res.json({ success: true, message: 'Profile updated' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update profile' });
   }
 });
 

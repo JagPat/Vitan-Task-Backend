@@ -210,3 +210,6 @@ router.put("/config", requireSuperAdmin, async (req, res) => {
 });
 
 module.exports = router;
+
+
+
