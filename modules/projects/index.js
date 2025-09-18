@@ -91,19 +91,23 @@ module.exports = {
       }
     ];
 
-    // GET /api/modules/projects - Get all projects
+    // GET /api/modules/projects - Get all projects (optional filter by assignedEmail)
     router.get('/', (req, res) => {
       try {
+        const { assignedEmail } = req.query || {};
+        const list = assignedEmail
+          ? projects.filter(p => Array.isArray(p.team) && p.team.includes(assignedEmail))
+          : projects;
         logger.info('Projects requested', { 
-          count: projects.length,
+          count: list.length,
           userAgent: req.get('User-Agent')
         });
         
         res.json({
           success: true,
-          data: projects,
+          data: list,
           meta: {
-            total: projects.length,
+            total: list.length,
             page: 1,
             limit: 50
           }
@@ -263,6 +267,81 @@ module.exports = {
           success: false,
           error: 'Failed to update project'
         });
+      }
+    });
+
+    // --- Team management endpoints ---
+    // GET /api/modules/projects/:id/users - List team members
+    router.get('/:id/users', (req, res) => {
+      try {
+        const project = projects.find(p => p.id === req.params.id);
+        if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
+        const team = Array.isArray(project.team) ? project.team : [];
+        const roles = project.teamRoles || {};
+        const members = team.map(email => ({ email, role: roles[email] || 'member' }));
+        res.json({ success: true, data: members });
+      } catch (error) {
+        logger.error('Error listing team members:', error);
+        res.status(500).json({ success: false, error: 'Failed to list team' });
+      }
+    });
+
+    // POST /api/modules/projects/:id/users - Add team member { email, role }
+    router.post('/:id/users', (req, res) => {
+      try {
+        const { email, role } = req.body || {};
+        if (!email) return res.status(400).json({ success: false, error: 'email required' });
+        const project = projects.find(p => p.id === req.params.id);
+        if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
+        project.team = Array.isArray(project.team) ? project.team : [];
+        if (!project.team.includes(email)) {
+          project.team.push(email);
+        }
+        project.teamRoles = project.teamRoles || {};
+        if (role) project.teamRoles[email] = role;
+        project.updatedAt = new Date().toISOString();
+        res.status(201).json({ success: true, data: { email, role: project.teamRoles[email] || 'member' } });
+      } catch (error) {
+        logger.error('Error adding team member:', error);
+        res.status(500).json({ success: false, error: 'Failed to add user to project' });
+      }
+    });
+
+    // PUT /api/modules/projects/:id/users - Update member role { email, role }
+    router.put('/:id/users', (req, res) => {
+      try {
+        const { email, role } = req.body || {};
+        if (!email || !role) return res.status(400).json({ success: false, error: 'email and role required' });
+        const project = projects.find(p => p.id === req.params.id);
+        if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
+        project.team = Array.isArray(project.team) ? project.team : [];
+        if (!project.team.includes(email)) return res.status(404).json({ success: false, error: 'User not in project' });
+        project.teamRoles = project.teamRoles || {};
+        project.teamRoles[email] = role;
+        project.updatedAt = new Date().toISOString();
+        res.json({ success: true, data: { email, role } });
+      } catch (error) {
+        logger.error('Error updating team member role:', error);
+        res.status(500).json({ success: false, error: 'Failed to update user role' });
+      }
+    });
+
+    // DELETE /api/modules/projects/:id/users/:email - Remove team member
+    router.delete('/:id/users/:email', (req, res) => {
+      try {
+        const { email } = req.params;
+        const project = projects.find(p => p.id === req.params.id);
+        if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
+        project.team = Array.isArray(project.team) ? project.team : [];
+        const idx = project.team.indexOf(email);
+        if (idx === -1) return res.status(404).json({ success: false, error: 'User not in project' });
+        project.team.splice(idx, 1);
+        if (project.teamRoles && project.teamRoles[email]) delete project.teamRoles[email];
+        project.updatedAt = new Date().toISOString();
+        res.json({ success: true, data: { email }, message: 'User removed' });
+      } catch (error) {
+        logger.error('Error removing team member:', error);
+        res.status(500).json({ success: false, error: 'Failed to remove user' });
       }
     });
 

@@ -12,3 +12,4 @@ module.exports = {
   health: async () => ({ status: 'healthy', module: 'billing', timestamp: new Date().toISOString() }),
   shutdown: async () => true,
 };
+
